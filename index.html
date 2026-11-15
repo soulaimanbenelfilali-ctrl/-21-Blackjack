@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>لعبة الكارطا 21</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: white;
+            overflow: hidden;
+            touch-action: none; /* يمنع التكبير في الهواتف */
+        }
+
+        /* طاولة اللعب (الكازينو) - واقعية */
+        #game-table {
+            background: radial-gradient(ellipse at 50% 50%, #157e38 0%, #0c4d21 60%, #062b11 100%);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            box-shadow: inset 0 0 120px rgba(0,0,0,0.9);
+            border: 10px solid #3e2723; /* إطار خشبي */
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        /* شعار مطبوع وسط الطاولة */
+        .table-logo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.06);
+            text-align: center;
+            pointer-events: none;
+            font-family: 'Times New Roman', serif;
+            letter-spacing: 5px;
+            line-height: 1.2;
+        }
+
+        /* خطوط الطاولة */
+        .table-line {
+            position: absolute;
+            border: 2px solid rgba(255, 215, 0, 0.15);
+            border-radius: 50%;
+            width: 120%;
+            height: 200px;
+            left: -10%;
+            bottom: 25%;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(255,215,0,0.05);
+        }
+
+        /* تصميم الكارطا (3D Flip) بواقعية */
+        .card-container {
+            --rot: 0deg; /* دوران عشوائي يعطى بالجافاسكريبت */
+            width: 85px;
+            height: 125px;
+            perspective: 1000px;
+            margin-left: -55px; /* تداخل الأوراق */
+            position: relative;
+            transition: transform 0.3s ease;
+            transform: rotate(var(--rot)); /* تطبيق الدوران العشوائي */
+        }
+        
+        @media (min-width: 768px) {
+            .card-container { width: 110px; height: 160px; margin-left: -70px; }
+            .table-logo { font-size: 6rem; }
+        }
+
+        .card-container:first-child { margin-left: 0; }
+        .card-container:hover { transform: translateY(-15px) rotate(var(--rot)) scale(1.05); z-index: 20; }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* حركة قلب الكارطا */
+            transform-style: preserve-3d;
+            box-shadow: -3px 5px 15px rgba(0,0,0,0.5);
+            border-radius: 10px;
+        }
+
+        .card.flipped { transform: rotateY(180deg); }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            background-color: #fdfdfd;
+            border: 1px solid #ccc;
+        }
+
+        /* الواجهة الأمامية للكارطا */
+        .card-front {
+            transform: rotateY(180deg);
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: linear-gradient(135deg, #ffffff 0%, #f4f4f4 100%);
+            font-family: 'Times New Roman', serif;
+        }
+
+        /* ظهر الكارطا باحترافية */
+        .card-back {
+            background-color: #b71c1c;
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.15) 8px, rgba(255,255,255,0.15) 16px), 
+                repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.15) 8px, rgba(255,255,255,0.15) 16px);
+            border: 5px solid white;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.6);
+        }
+
+        .card-corner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 0.9;
+        }
+        .card-corner.top-left { align-self: flex-start; }
+        .card-corner.bottom-right { align-self: flex-end; transform: rotate(180deg); }
+        
+        .card-corner .val { font-size: 1.3rem; font-weight: bold; }
+        .card-corner .suit { font-size: 1.1rem; }
+        
+        @media (min-width: 768px) {
+            .card-corner .val { font-size: 1.6rem; }
+            .card-corner .suit { font-size: 1.3rem; }
+        }
+
+        /* الرمز الكبير وسط الكارطا */
+        .card-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            opacity: 0.85;
+        }
+        @media (min-width: 768px) {
+            .card-center { font-size: 4rem; }
+        }
+
+        .red-suit { color: #d32f2f; }
+        .black-suit { color: #212121; }
+
+        /* منطقة الأوراق */
+        .cards-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 150px;
+            padding: 20px;
+        }
+
+        /* أزرار التحكم */
+        .btn-action {
+            background: linear-gradient(to bottom, #facc15, #ca8a04);
+            border: 2px solid #fef08a;
+            color: #422006;
+            font-weight: 900;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            transition: all 0.1s;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn-action:active { transform: translateY(4px); box-shadow: 0 1px 5px rgba(0,0,0,0.4); }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-stand { background: linear-gradient(to bottom, #ef4444, #b91c1c); border-color: #fca5a5; color: white; }
+        .btn-deal { background: linear-gradient(to bottom, #3b82f6, #1d4ed8); border-color: #93c5fd; color: white; }
+
+        /* الشريحة (Chips) - بحال الكازينو */
+        .chip {
+            width: 65px; height: 65px;
+            border-radius: 50%;
+            background: repeating-conic-gradient(#1e3a8a 0 15deg, #fff 15deg 30deg);
+            border: 4px solid #1e3a8a;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: 900; color: #fff; font-size: 1.1rem;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        .chip::after {
+            content: '';
+            position: absolute;
+            width: 45px; height: 45px;
+            background-color: #1e3a8a;
+            border-radius: 50%;
+            border: 2px dashed #fff;
+            z-index: 0;
+        }
+        .chip span { position: relative; z-index: 1; }
+        
+        /* رسائل النتيجة */
+        #message-overlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            font-weight: 900;
+            text-align: center;
+            text-shadow: 0 5px 20px rgba(0,0,0,0.9);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 50;
+            transition: opacity 0.3s, transform 0.3s;
+            width: 100%;
+        }
+        .msg-win { color: #4ade80; }
+        .msg-lose { color: #f87171; }
+        .msg-draw { color: #facc15; }
+
+        /* الأنيميشن ديال توزيع الأوراق واقعي */
+        @keyframes dealAnimation {
+            0% { transform: translateY(-300px) translateX(200px) rotate(-90deg) scale(0.3); opacity: 0; }
+            100% { transform: translateY(0) translateX(0) rotate(var(--rot)) scale(1); opacity: 1; }
+        }
+        .anim-deal { animation: dealAnimation 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-table">
+    <div class="table-logo">BLACKJACK<br><span style="font-size: 2rem; font-weight: normal;">PAYS 3 TO 2</span></div>
+    <div class="table-line"></div>
+
+    <!-- قسم الكروپيي (الخصم) -->
+    <div class="pt-8 relative z-10">
+        <div class="text-center mb-2">
+            <span class="bg-black bg-opacity-50 px-4 py-1 rounded-full text-gray-300 font-bold">
+                الكروپيي <span id="dealer-score" class="ml-2 text-yellow-400">?</span>
+            </span>
+        </div>
+        <div id="dealer-cards" class="cards-area">
+            <!-- سيتم إضافة الأوراق هنا بالـ JS -->
+        </div>
+    </div>
+
+    <!-- رسالة النتيجة -->
+    <div id="message-overlay">ربحتي!</div>
+
+    <!-- قسم اللاعب (أنت) -->
+    <div class="pb-8 relative z-10">
+        <div id="player-cards" class="cards-area">
+            <!-- سيتم إضافة الأوراق هنا بالـ JS -->
+        </div>
+        <div class="text-center mt-2 mb-6">
+            <span class="bg-black bg-opacity-50 px-4 py-1 rounded-full text-white font-bold text-xl border border-gray-600 shadow-lg">
+                السكور ديالك: <span id="player-score" class="text-green-400 font-black">0</span>
+            </span>
+        </div>
+
+        <!-- لوحة التحكم -->
+        <div class="bg-black bg-opacity-80 p-4 rounded-t-3xl border-t border-gray-700 max-w-2xl mx-auto backdrop-blur-sm">
+            
+            <!-- الرصيد والرهان -->
+            <div class="flex justify-between items-center mb-4 px-4">
+                <div class="text-center">
+                    <div class="text-gray-400 text-sm">الرصيد ديالك</div>
+                    <div class="text-2xl font-black text-yellow-400">DH <span id="balance">1000</span></div>
+                </div>
+                <div id="bet-area" class="flex items-center gap-4">
+                    <button id="btn-bet-minus" class="bg-gray-700 w-10 h-10 rounded-full text-xl font-bold hover:bg-gray-600">-</button>
+                    <div class="chip" id="current-bet"><span>100</span></div>
+                    <button id="btn-bet-plus" class="bg-gray-700 w-10 h-10 rounded-full text-xl font-bold hover:bg-gray-600">+</button>
+                </div>
+            </div>
+
+            <!-- الأزرار -->
+            <div class="flex justify-center gap-4">
+                <button id="btn-deal" class="btn-action btn-deal w-full max-w-[200px]">فرق الكارطا</button>
+                <button id="btn-hit" class="btn-action w-full max-w-[150px] hidden">زيد ورقة</button>
+                <button id="btn-stand" class="btn-action btn-stand w-full max-w-[150px] hidden">حبس</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * ==========================================
+ * نظام الصوت (Audio Manager)
+ * ==========================================
+ */
+class AudioManager {
+    constructor() { this.ctx = null; }
+    init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    
+    playTone(freq, type, duration, vol=0.1) {
+        if(!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(); osc.stop(this.ctx.currentTime + duration);
+    }
+    
+    // صوت توزيع الكارطا
+    playCardDeal() {
+        this.init();
+        this.playTone(400, 'triangle', 0.1, 0.2);
+    }
+    
+    // صوت الرباح
+    playWin() {
+        this.init();
+        [440, 554, 659, 880].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.3, 0.2), i*100));
+    }
+    
+    // صوت الخسارة
+    playLose() {
+        this.init();
+        this.playTone(300, 'sawtooth', 0.5, 0.2);
+        setTimeout(() => this.playTone(250, 'sawtooth', 0.6, 0.2), 200);
+    }
+}
+const audio = new AudioManager();
+
+/**
+ * ==========================================
+ * منطق الكارطا (Deck & Cards Logic)
+ * ==========================================
+ */
+const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+// رموز الكارطا
+const suitSymbols = {
+    'hearts': '♥', 'diamonds': '♦', 'clubs': '♣', 'spades': '♠'
+};
+const suitColors = {
+    'hearts': 'red-suit', 'diamonds': 'red-suit', 'clubs': 'black-suit', 'spades': 'black-suit'
+};
+
+let deck = [];
+let playerHand = [];
+let dealerHand = [];
+let balance = 1000;
+let currentBet = 100;
+let gameState = 'IDLE'; // IDLE, PLAYING, ENDED
+
+// DOM Elements
+const dealerCardsEl = document.getElementById('dealer-cards');
+const playerCardsEl = document.getElementById('player-cards');
+const dealerScoreEl = document.getElementById('dealer-score');
+const playerScoreEl = document.getElementById('player-score');
+const balanceEl = document.getElementById('balance');
+const betEl = document.getElementById('current-bet');
+const msgOverlay = document.getElementById('message-overlay');
+
+const btnDeal = document.getElementById('btn-deal');
+const btnHit = document.getElementById('btn-hit');
+const btnStand = document.getElementById('btn-stand');
+const btnBetPlus = document.getElementById('btn-bet-plus');
+const btnBetMinus = document.getElementById('btn-bet-minus');
+const betArea = document.getElementById('bet-area');
+
+// إنشاء وخلط الكارطا
+function createDeck() {
+    deck = [];
+    for (let suit of suits) {
+        for (let value of values) {
+            deck.push({ suit, value });
+        }
+    }
+}
+
+function shuffleDeck() {
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+}
+
+// حساب قيمة الكارطا (السكور)
+function calculateScore(hand) {
+    let score = 0;
+    let aces = 0;
+    for (let card of hand) {
+        if (['J', 'Q', 'K'].includes(card.value)) {
+            score += 10;
+        } else if (card.value === 'A') {
+            aces += 1;
+            score += 11;
+        } else {
+            score += parseInt(card.value);
+        }
+    }
+    // تعديل قيمة الآص (A) إذا كان المجموع يفوق 21
+    while (score > 21 && aces > 0) {
+        score -= 10;
+        aces -= 1;
+    }
+    return score;
+}
+
+// إنشاء عنصر HTML ديال الكارطا
+function createCardElement(card, hidden = false) {
+    const el = document.createElement('div');
+    el.className = 'card-container anim-deal';
+    
+    // إضافة دوران عشوائي باش تبان حقيقية فوق الطابلة
+    const randomRot = (Math.random() * 10 - 5).toFixed(1); 
+    el.style.setProperty('--rot', `${randomRot}deg`);
+    
+    // تصميم الواجهة والأمام باحترافية
+    const frontHTML = `
+        <div class="card-face card-front ${suitColors[card.suit]}">
+            <div class="card-corner top-left">
+                <div class="val">${card.value}</div>
+                <div class="suit">${suitSymbols[card.suit]}</div>
+            </div>
+            <div class="card-center">${suitSymbols[card.suit]}</div>
+            <div class="card-corner bottom-right">
+                <div class="val">${card.value}</div>
+                <div class="suit">${suitSymbols[card.suit]}</div>
+            </div>
+        </div>
+    `;
+    const backHTML = `<div class="card-face card-back"></div>`;
+
+    el.innerHTML = `
+        <div class="card ${hidden ? '' : 'flipped'}">
+            ${backHTML}
+            ${frontHTML}
+        </div>
+    `;
+    return el;
+}
+
+/**
+ * ==========================================
+ * التحكم في مسار اللعبة (Game Flow)
+ * ==========================================
+ */
+
+// تحديث الرهان
+btnBetPlus.addEventListener('click', () => {
+    if (gameState !== 'IDLE') return;
+    if (currentBet + 100 <= balance) {
+        currentBet += 100;
+        betEl.innerText = currentBet;
+        audio.playCardDeal();
+    }
+});
+btnBetMinus.addEventListener('click', () => {
+    if (gameState !== 'IDLE') return;
+    if (currentBet - 100 >= 100) {
+        currentBet -= 100;
+        betEl.innerText = currentBet;
+        audio.playCardDeal();
+    }
+});
+
+// بدء جولة جديدة (فرق الكارطا)
+btnDeal.addEventListener('click', () => {
+    audio.init();
+    if (balance < currentBet) {
+        currentBet = balance;
+        betEl.innerText = currentBet;
+        if(balance === 0) { alert("سالا ليك الرصيد! غادي نزيدوك 1000 درهم تلعب بيها."); balance = 1000; currentBet = 100; betEl.innerText=currentBet; balanceEl.innerText=balance; }
+    }
+    
+    gameState = 'PLAYING';
+    balance -= currentBet;
+    balanceEl.innerText = balance;
+    
+    // إخفاء الأزرار
+    btnDeal.classList.add('hidden');
+    betArea.style.opacity = '0.5';
+    btnBetPlus.disabled = true; btnBetMinus.disabled = true;
+    
+    // إظهار أزرار اللعب
+    btnHit.classList.remove('hidden');
+    btnStand.classList.remove('hidden');
+    btnHit.disabled = false; btnStand.disabled = false;
+    
+    // تنظيف الطاولة
+    dealerCardsEl.innerHTML = '';
+    playerCardsEl.innerHTML = '';
+    msgOverlay.style.opacity = 0;
+    
+    createDeck();
+    shuffleDeck();
+    
+    playerHand = [deck.pop(), deck.pop()];
+    dealerHand = [deck.pop(), deck.pop()];
+    
+    // توزيع بالأنيميشن
+    dealInitialCards();
+});
+
+function dealInitialCards() {
+    // ورقة اللاعب 1
+    setTimeout(() => {
+        playerCardsEl.appendChild(createCardElement(playerHand[0]));
+        audio.playCardDeal();
+        updateScores();
+    }, 200);
+    
+    // ورقة الكروپيي 1 (مخفية)
+    setTimeout(() => {
+        dealerCardsEl.appendChild(createCardElement(dealerHand[0], true));
+        audio.playCardDeal();
+    }, 600);
+    
+    // ورقة اللاعب 2
+    setTimeout(() => {
+        playerCardsEl.appendChild(createCardElement(playerHand[1]));
+        audio.playCardDeal();
+        updateScores();
+    }, 1000);
+    
+    // ورقة الكروپيي 2
+    setTimeout(() => {
+        dealerCardsEl.appendChild(createCardElement(dealerHand[1]));
+        audio.playCardDeal();
+        dealerScoreEl.innerText = calculateScore([dealerHand[1]]); // إظهار قيمة الورقة المرئية فقط
+        
+        // التحقق من البلاك جاك من الدقة الأولى
+        if (calculateScore(playerHand) === 21) {
+            endGame('BLACKJACK');
+        }
+    }, 1400);
+}
+
+function updateScores() {
+    playerScoreEl.innerText = calculateScore(playerHand);
+}
+
+// زر زيد ورقة (Hit)
+btnHit.addEventListener('click', () => {
+    if (gameState !== 'PLAYING') return;
+    
+    const card = deck.pop();
+    playerHand.push(card);
+    playerCardsEl.appendChild(createCardElement(card));
+    audio.playCardDeal();
+    
+    updateScores();
+    
+    if (calculateScore(playerHand) > 21) {
+        endGame('BUST'); // خسارة (فتي 21)
+    }
+});
+
+// زر حبس (Stand)
+btnStand.addEventListener('click', () => {
+    if (gameState !== 'PLAYING') return;
+    btnHit.disabled = true;
+    btnStand.disabled = true;
+    
+    // كشف ورقة الكروپيي المخفية
+    const hiddenCard = dealerCardsEl.children[0].querySelector('.card');
+    hiddenCard.classList.add('flipped');
+    audio.playCardDeal();
+    dealerScoreEl.innerText = calculateScore(dealerHand);
+    
+    // دور الكروپيي (كيزيد الأوراق يلا عندو قل من 17)
+    setTimeout(dealerPlay, 1000);
+});
+
+function dealerPlay() {
+    if (calculateScore(dealerHand) < 17) {
+        const card = deck.pop();
+        dealerHand.push(card);
+        dealerCardsEl.appendChild(createCardElement(card));
+        audio.playCardDeal();
+        dealerScoreEl.innerText = calculateScore(dealerHand);
+        
+        setTimeout(dealerPlay, 1000); // يستمر في سحب الأوراق
+    } else {
+        determineWinner();
+    }
+}
+
+// تحديد الفائز
+function determineWinner() {
+    const pScore = calculateScore(playerHand);
+    const dScore = calculateScore(dealerHand);
+    
+    if (dScore > 21) {
+        endGame('DEALER_BUST');
+    } else if (pScore > dScore) {
+        endGame('WIN');
+    } else if (pScore < dScore) {
+        endGame('LOSE');
+    } else {
+        endGame('DRAW'); // تعادل
+    }
+}
+
+// إنهاء الجولة وإظهار الرسالة
+function endGame(reason) {
+    gameState = 'ENDED';
+    btnHit.classList.add('hidden');
+    btnStand.classList.add('hidden');
+    
+    let msg = "";
+    msgOverlay.className = ""; // Reset classes
+    
+    if (reason === 'BLACKJACK') {
+        msg = "بلاك جاك! ♠️"; msgOverlay.classList.add('msg-win');
+        balance += currentBet * 2.5; // ربح مضاعف
+        audio.playWin();
+    } else if (reason === 'WIN' || reason === 'DEALER_BUST') {
+        msg = "ربحتي! 💰"; msgOverlay.classList.add('msg-win');
+        balance += currentBet * 2;
+        audio.playWin();
+    } else if (reason === 'DRAW') {
+        msg = "تعادل! 🤝"; msgOverlay.classList.add('msg-draw');
+        balance += currentBet; // ترجيع الرهان
+    } else {
+        msg = "خسرتي! ❌"; msgOverlay.classList.add('msg-lose');
+        audio.playLose();
+    }
+    
+    // كشف ورقة الكروپيي يلا بقات مخفية (حالة BUST ديال اللاعب)
+    if (reason === 'BUST') {
+        dealerCardsEl.children[0].querySelector('.card').classList.add('flipped');
+        dealerScoreEl.innerText = calculateScore(dealerHand);
+    }
+    
+    balanceEl.innerText = balance;
+    
+    // إظهار الرسالة
+    msgOverlay.innerText = msg;
+    msgOverlay.style.opacity = 1;
+    msgOverlay.style.transform = 'translate(-50%, -50%) scale(1.1)';
+    
+    // تجهيز لجولة جديدة
+    setTimeout(() => {
+        msgOverlay.style.transform = 'translate(-50%, -50%) scale(1)';
+        btnDeal.classList.remove('hidden');
+        betArea.style.opacity = '1';
+        btnBetPlus.disabled = false; btnBetMinus.disabled = false;
+        gameState = 'IDLE';
+    }, 2000);
+}
+
+</script>
+</body>
+</html>
